@@ -105,14 +105,14 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     pred = add_semb_col(pred, pred_embed_path, gt_embed_path)
 
     # run radgraph to create that column
-    #entities_path, relations_path = run_radgraph(gt_csv, pred_csv, "cache/")
+    entities_path, relations_path = run_radgraph(gt_csv, pred_csv, "cache/")
     entities_path, relations_path = "cache/entities_cache.json", "cache/relations_cache.json"
     pred = add_radgraph_col(pred, entities_path, relations_path)
 
     # run the linear model
-    model_file = open('lin_score_model.pkl', 'rb')
+    model_file = open('CXRMetric/lin_score_model.pkl', 'rb')
     lin_model= pickle.load(model_file)
-    file.close()
+    model_file.close()
     # normalize
     cols = ["radgraph_combined", "bertscore", "semb_score", "bleu_score"]
     input_data = np.array(pred[cols])
@@ -120,7 +120,7 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     scaler.fit(input_data)
     norm_input_data = scaler.transform(input_data)
     # generate new col
-    scores = reg.predict(norm_input_data)
+    scores = lin_model.predict(norm_input_data)
 
     # append new column
     pred["cxr_metric_score"] = scores
