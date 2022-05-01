@@ -4,9 +4,17 @@ import os
 
 from fast_bleu import BLEU
 from bert_score import BERTScorer
+from CXRMetric.radgraph_evaluate_model import run_radgraph
 import torch
+import json
+import pickle
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import MinMaxScaler
 
 REPORT_COL_NAME ="report"
+# TODO: link these in our readme
+CHEXBERT_PATH = ""
+RADGRAPH_PATH = "/deep/group/radgraph/physionet.org/files/radgraph/1.0.0/models/model_checkpoint/model.tar.gz"
 weights = {'bigram': (1/2., 1/2.)}
 
 def prep_reports(reports):
@@ -54,13 +62,26 @@ def add_semb_col(pred_df, semb_path, gt_path):
     pred_df["semb_score"] = scores
     return pred_df
 
-"""
-cd /deep/group/report-clip/CheXbert/src
-python encode.py -c ../models/chexbert.pth -d /deep/u/rayank/CXR-RePaiR/final/radgraph_copy.csv -o /deep/u/rayank/CXR-RePaiR/final/radgraph_copy_imp.pt
-python encode.py -c ../models/chexbert.pth -d /deep/u/rayank/CXR-RePaiR/final/bertscore_copy.csv -o /deep/u/rayank/CXR-RePaiR/final/bertscore_copy_imp.pt
-"""
+def add_radgraph_col(pred_df, entities_path, relations_path):
+    study_id_to_radgraph = {}
+    with open(entities_path, "r") as f:
+        scores = json.load(f)
+        for study_id, (f1, _, _) in scores.items():
+            study_id_to_radgraph[int(study_id)] = float(f1)
+    with open(relations_path, "r") as f:
+        scores = json.load(f)
+        for study_id, (f1, _, _) in scores.items():
+            study_id_to_radgraph[int(study_id)] += float(f1)
+            study_id_to_radgraph[int(study_id)] /= float(2)
+    radgraph_scores = []
+    count = 0
+    for i, row in pred_df.iterrows():
+        radgraph_scores.append(study_id_to_radgraph[int(row['study_id'])])
+    pred_df["radgraph_combined"] = radgraph_scores
+    return pred_df
 
-def calc_metric(gt_csv, pred_csv, out_csv):
+def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a time
+    os.environ['MKL_THREADING_LAYER'] = 'GNU'
     print(gt_csv, pred_csv)
     # take a csv to the eval an gt reports
     gt, pred = pd.read_csv(gt_csv), pd.read_csv(pred_csv)
@@ -70,10 +91,10 @@ def calc_metric(gt_csv, pred_csv, out_csv):
     assert (REPORT_COL_NAME in gt.columns) and (REPORT_COL_NAME in pred.columns)
 
     # add blue column to the eval df
-    #pred = add_bleu_col(gt, pred)
+    pred = add_bleu_col(gt, pred)
 
     # add bertscore column to the eval df
-    #pred = add_bertscore_col(gt, pred)
+    pred = add_bertscore_col(gt, pred)
 
     # run encode.py to make the semb column
     print(os.getcwd())
@@ -84,6 +105,26 @@ def calc_metric(gt_csv, pred_csv, out_csv):
     pred = add_semb_col(pred, pred_embed_path, gt_embed_path)
 
     # run radgraph to create that column
+    #entities_path, relations_path = run_radgraph(gt_csv, pred_csv, "cache/")
+    entities_path, relations_path = "cache/entities_cache.json", "cache/relations_cache.json"
+    pred = add_radgraph_col(pred, entities_path, relations_path)
+
+    # run the linear model
+    model_file = open('lin_score_model.pkl', 'rb')
+    lin_model= pickle.load(model_file)
+    file.close()
+    # normalize
+    cols = ["radgraph_combined", "bertscore", "semb_score", "bleu_score"]
+    input_data = np.array(pred[cols])
+    scaler = MinMaxScaler()
+    scaler.fit(input_data)
+    norm_input_data = scaler.transform(input_data)
+    # generate new col
+    scores = reg.predict(norm_input_data)
+
+    # append new column
+    pred["cxr_metric_score"] = scores
 
     # save results in the out folder
     pred.to_csv(out_csv)
+
