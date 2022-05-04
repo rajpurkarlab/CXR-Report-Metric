@@ -21,9 +21,6 @@ metric scores for radiology report evaluation. The metrics are:
 <a name="prerequisites"></a>
 
 # Prerequisites
-(yml file, requirement file)
-TODO: add dependencies for metrics beyond RadGraph
-
 To install the dependencies, run:
 ```
 pip install -r requirements.txt
@@ -37,16 +34,25 @@ column named "reports" in two CSV files. The CSVs should also contain a
 corresponding "study_id" column that contains unique identifies for the reports.
 
 ## CheXbert
-TODO
+To compute the CheXbert vector similarity (s_emb) metric score, download the
+CheXbert model checkpoint [here](https://stanfordmedicine.box.com/s/c3stck6w6dol3h36grdc97xoydzxd7w9).
+
+The code for computing the CheXbert metric score is adapted from
+[stanfordmlgroup/CheXbert](https://github.com/stanfordmlgroup/CheXbert).
+
+Paper (Accepted to EMNLP 2020): https://arxiv.org/abs/2004.09167.
 
 ## RadGraph
 To compute the RadGraph metric score, download the RadGraph model checkpoint
 from PhysioNet [here](https://physionet.org/content/radgraph/1.0.0/). The
 checkpoint file can be found under the "Files" section at path
 `models/model_checkpoint/`.
+
 The code for computing the RadGraph metric score is adapted from
 [dwadden/dygiepp](https://github.com/dwadden/dygiepp).
 Note: You need to apply for credentialed access to RadGraph on PhysioNet.
+
+Paper (Accepted to NeurIPS 2021): https://arxiv.org/abs/2106.14463.
 
 
 <a name="usage"></a>
@@ -69,5 +75,5 @@ This repository is made publicly available under the MIT License.
 # Citing
 If you are using this repo, please cite this paper:
 ```
-TODO: bibliography
+TODO
 ```
