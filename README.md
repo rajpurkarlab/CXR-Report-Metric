@@ -1,4 +1,4 @@
-<img src="metric-radiologist-alignment.jpg" width="700"/>
+<img src="figures/metric-radiologist-alignment.jpg" width="700"/>
 
 Repository referenced in the paper "Measuring Progress in Automatic Chest 
 X-Ray Radiology Report Generation". This repository provides code for computing
@@ -32,13 +32,12 @@ pip install -r requirements.txt
 <a name="requirements"></a>
 
 # Requirements
-model checkpoint files
-
 Ground Truth and Generated reports must be arranged in the same order in a
 column named "reports" in two CSV files. The CSVs should also contain a
 corresponding "study_id" column that contains unique identifies for the reports.
 
 ## CheXbert
+TODO
 
 ## RadGraph
 To compute the RadGraph metric score, download the RadGraph model checkpoint
