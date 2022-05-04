@@ -21,7 +21,7 @@ metric scores for radiology report evaluation. The metrics are:
 <a name="prerequisites"></a>
 
 # Prerequisites
-To install the dependencies, run:
+To install the dependencies, run the following command with Python 3.7 or higher:
 ```
 pip install -r requirements.txt
 ```
@@ -29,13 +29,17 @@ pip install -r requirements.txt
 <a name="requirements"></a>
 
 # Requirements
-Ground Truth and Generated reports must be arranged in the same order in a
+Ground Truth and Predicted reports must be arranged in the same order in a
 column named "reports" in two CSV files. The CSVs should also contain a
 corresponding "study_id" column that contains unique identifies for the reports.
+
+In `config.py`, set `GT_REPORTS` and `PREDICTED_REPORTS` to paths to the CSVs.
+Set `OUT_FILE` to the desired path for the output metric scores.
 
 ## CheXbert
 To compute the CheXbert vector similarity (s_emb) metric score, download the
 CheXbert model checkpoint [here](https://stanfordmedicine.box.com/s/c3stck6w6dol3h36grdc97xoydzxd7w9).
+Set `CHEXBERT_PATH` in `config.py` to the path to the downloaded checkpoint.
 
 The code for computing the CheXbert metric score is adapted from
 [stanfordmlgroup/CheXbert](https://github.com/stanfordmlgroup/CheXbert).
@@ -44,9 +48,10 @@ Paper (Accepted to EMNLP 2020): https://arxiv.org/abs/2004.09167.
 
 ## RadGraph
 To compute the RadGraph metric score, download the RadGraph model checkpoint
-from PhysioNet [here](https://physionet.org/content/radgraph/1.0.0/). The
-checkpoint file can be found under the "Files" section at path
+from PhysioNet [here](https://physionet.org/content/radgraph/1.0.0/).
+The checkpoint file can be found under the "Files" section at path
 `models/model_checkpoint/`.
+Set `RADGRAPH_PATH` in `config.py` to the path to the downloaded checkpoint.
 
 The code for computing the RadGraph metric score is adapted from
 [dwadden/dygiepp](https://github.com/dwadden/dygiepp).
