@@ -135,11 +135,11 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     model_file.close()
     # normalize
     input_data = np.array(pred[COLS])
-    scaler = MinMaxScaler()
-    scaler.fit(input_data)
-    norm_input_data = scaler.transform(input_data)
+    # scaler = MinMaxScaler()
+    # scaler.fit(input_data)
+    # norm_input_data = scaler.transform(input_data)
     # generate new col
-    scores = lin_model.predict(norm_input_data)
+    scores = lin_model.predict(input_data)
 
     # append new column
     pred[composite_metric_col] = scores
