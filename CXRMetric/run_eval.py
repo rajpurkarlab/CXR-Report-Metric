@@ -22,13 +22,14 @@ RADGRAPH_PATH = config.RADGRAPH_PATH
 REPORT_COL_NAME = "report"
 STUDY_ID_COL_NAME = "study_id"
 COLS = ["radgraph_combined", "bertscore", "semb_score", "bleu_score"]
+COMPOSITE_METRIC_PATH = "CXRMetric/composite_metric_model.pkl"
+NORMALIZER_PATH = "CXRMetric/normalizer.pkl"
 
 cache_path = "cache/"
 pred_embed_path = os.path.join(cache_path, "pred_embeddings.pt")
 gt_embed_path = os.path.join(cache_path, "gt_embeddings.pt")
 weights = {"bigram": (1/2., 1/2.)}
 composite_metric_col = "cxr_metric_score"
-linear_model_path = "CXRMetric/lin_score_model.pkl"
 
 
 def prep_reports(reports):
@@ -72,7 +73,7 @@ def add_semb_col(pred_df, semb_path, gt_path):
     pred_embeds = torch.load(semb_path)
     np_label_embeds = torch.stack([*label_embeds.values()], dim=0).numpy()
     np_pred_embeds = torch.stack([*pred_embeds.values()], dim=0).numpy()
-    print(len(pred_df), len(np_pred_embeds), len(np_label_embeds))
+    # print(len(pred_df), len(np_pred_embeds), len(np_label_embeds))
     scores = []
     for i, (label, pred) in enumerate(zip(np_label_embeds, np_pred_embeds)):
         sim_scores = (label * pred).sum() / (
@@ -101,7 +102,7 @@ def add_radgraph_col(pred_df, entities_path, relations_path):
 
 def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a time
     os.environ["MKL_THREADING_LAYER"] = "GNU"
-    print(gt_csv, pred_csv)
+    # print(gt_csv, pred_csv)
     # take a csv to the eval an gt reports
     gt, pred = pd.read_csv(gt_csv), pd.read_csv(pred_csv)
 
@@ -116,7 +117,7 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     pred = add_bertscore_col(gt, pred)
 
     # run encode.py to make the semb column
-    print(os.getcwd())
+    # print(os.getcwd())
     os.system(f"mkdir -p {cache_path}")
     os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {pred_csv} -o {pred_embed_path}")
     os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {gt_csv} -o {gt_embed_path}")
@@ -130,16 +131,15 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     pred = add_radgraph_col(pred, entities_path, relations_path)
 
     # run the linear model
-    model_file = open(linear_model_path, "rb")
-    lin_model= pickle.load(model_file)
-    model_file.close()
+    with open(COMPOSITE_METRIC_PATH, "rb") as f:
+        composite_metric_model = pickle.load(f)
+    with open(NORMALIZER_PATH, "rb") as f:
+        normalizer = pickle.load(f)
     # normalize
     input_data = np.array(pred[COLS])
-    # scaler = MinMaxScaler()
-    # scaler.fit(input_data)
-    # norm_input_data = scaler.transform(input_data)
+    norm_input_data = normalizer.transform(input_data)
     # generate new col
-    scores = lin_model.predict(input_data)
+    scores = composite_metric_model.predict(norm_input_data)
 
     # append new column
     pred[composite_metric_col] = scores
