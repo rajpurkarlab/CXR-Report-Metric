@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import os
+import re
 import pandas as pd
 import pickle
 import torch
@@ -59,9 +60,9 @@ def add_bleu_col(gt_df, pred_df):
 
 def add_bertscore_col(gt_df, pred_df):
     test_reports = gt_df[REPORT_COL_NAME].tolist()
-    test_reports = [test.lstrip() for test in test_reports]
+    test_reports = [re.sub(r' +', ' ', test) for test in test_reports]
     method_reports = pred_df[REPORT_COL_NAME].tolist()
-    method_reports = [report.lstrip() for report in method_reports]
+    method_reports = [re.sub(r' +', ' ', report) for report in method_reports]
 
     scorer = BERTScorer(model_type="distilroberta-base", batch_size=256)
     _, _, f1 = scorer.score(method_reports, test_reports)
@@ -87,12 +88,18 @@ def add_radgraph_col(pred_df, entities_path, relations_path):
     with open(entities_path, "r") as f:
         scores = json.load(f)
         for study_id, (f1, _, _) in scores.items():
-            study_id_to_radgraph[int(study_id)] = float(f1)
+            try:
+                study_id_to_radgraph[int(study_id)] = float(f1)
+            except:
+                continue
     with open(relations_path, "r") as f:
         scores = json.load(f)
         for study_id, (f1, _, _) in scores.items():
-            study_id_to_radgraph[int(study_id)] += float(f1)
-            study_id_to_radgraph[int(study_id)] /= float(2)
+            try:
+                study_id_to_radgraph[int(study_id)] += float(f1)
+                study_id_to_radgraph[int(study_id)] /= float(2)
+            except:
+                continue
     radgraph_scores = []
     count = 0
     for i, row in pred_df.iterrows():
@@ -104,11 +111,13 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     os.environ["MKL_THREADING_LAYER"] = "GNU"
     # print(gt_csv, pred_csv)
     # take a csv to the eval an gt reports
-    gt, pred = pd.read_csv(gt_csv), pd.read_csv(pred_csv)
+    gt = pd.read_csv(gt_csv).sort_values(by=[STUDY_ID_COL_NAME])
+    pred = pd.read_csv(pred_csv).sort_values(by=[STUDY_ID_COL_NAME])
 
-    # check that the length is the same, assume that the order is the same
+    # check that length and study IDs are the same
     assert len(gt) == len(pred)
     assert (REPORT_COL_NAME in gt.columns) and (REPORT_COL_NAME in pred.columns)
+    assert (gt[STUDY_ID_COL_NAME].equals(pred[STUDY_ID_COL_NAME]))
 
     # add blue column to the eval df
     pred = add_bleu_col(gt, pred)
