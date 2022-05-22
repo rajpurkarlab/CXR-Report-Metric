@@ -60,11 +60,15 @@ def add_bleu_col(gt_df, pred_df):
 
 def add_bertscore_col(gt_df, pred_df):
     test_reports = gt_df[REPORT_COL_NAME].tolist()
-    test_reports = [test.lstrip() for test in test_reports]
+    test_reports = [re.sub(r' +', ' ', test) for test in test_reports]
     method_reports = pred_df[REPORT_COL_NAME].tolist()
-    method_reports = [report.lstrip() for report in method_reports]
+    method_reports = [re.sub(r' +', ' ', report) for report in method_reports]
 
-    scorer = BERTScorer(model_type="distilroberta-base", batch_size=256)
+    scorer = BERTScorer(
+        model_type="distilroberta-base",
+        batch_size=256,
+        lang="en",
+        rescale_with_baseline=True)
     _, _, f1 = scorer.score(method_reports, test_reports)
     pred_df["bertscore"] = f1
     return pred_df
