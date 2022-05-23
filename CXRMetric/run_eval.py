@@ -115,8 +115,12 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     os.environ["MKL_THREADING_LAYER"] = "GNU"
     # print(gt_csv, pred_csv)
     # take a csv to the eval an gt reports
-    gt = pd.read_csv(gt_csv).sort_values(by=[STUDY_ID_COL_NAME])
-    pred = pd.read_csv(pred_csv).sort_values(by=[STUDY_ID_COL_NAME])
+    gt = pd.read_csv(gt_csv)\
+        .sort_values(by=[STUDY_ID_COL_NAME]).reset_index(drop=True)
+    gt.to_csv(gt_csv)
+    pred = pd.read_csv(pred_csv)\
+        .sort_values(by=[STUDY_ID_COL_NAME]).reset_index(drop=True)
+    pred.to_csv(pred_csv)
 
     # check that length and study IDs are the same
     assert len(gt) == len(pred)
