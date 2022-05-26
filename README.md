@@ -9,7 +9,7 @@ metric scores for radiology report evaluation. The metrics are:
 * BERTscore
 * CheXbert labeler vector similarity
 * RadGraph entity and relation F1
-* Composite metric of the above metrics
+* Composite metric RadCliQ
 
 
 ## Table of Contents
