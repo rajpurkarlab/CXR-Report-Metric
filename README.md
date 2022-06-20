@@ -23,7 +23,7 @@ metric scores for radiology report evaluation. The metrics are:
 <a name="prerequisites"></a>
 
 # Prerequisites
-To install the dependencies, run the following command with Python 3.7 or higher:
+To install the dependencies, run the following command with Python 3.7:
 ```
 pip install -r requirements.txt
 ```

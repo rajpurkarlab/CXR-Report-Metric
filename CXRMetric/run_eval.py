@@ -153,10 +153,12 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     with open(NORMALIZER_PATH, "rb") as f:
         normalizer = pickle.load(f)
     # normalize
-    input_data = np.array(pred[COMPOSITE_METRIC_COLS])
+    input_data = np.array(pred[COLS])
     norm_input_data = normalizer.transform(input_data)
     # generate new col
-    scores = composite_metric_model.predict(norm_input_data)
+    metric_col_indices = [COLS.index(col) for col in COMPOSITE_METRIC_COLS]
+    scores = composite_metric_model.predict(
+        norm_input_data[:, metric_col_indices])
     # append new column
     pred[composite_metric_col] = scores
 
