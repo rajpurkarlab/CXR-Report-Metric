@@ -23,7 +23,6 @@ RADGRAPH_PATH = config.RADGRAPH_PATH
 REPORT_COL_NAME = "report"
 STUDY_ID_COL_NAME = "study_id"
 COLS = ["radgraph_combined", "bertscore", "semb_score", "bleu_score"]
-COMPOSITE_METRIC_COLS = ["radgraph_combined", "bleu_score"]
 COMPOSITE_METRIC_PATH = "CXRMetric/composite_metric_model.pkl"
 NORMALIZER_PATH = "CXRMetric/normalizer.pkl"
 
@@ -31,7 +30,7 @@ cache_path = "cache/"
 pred_embed_path = os.path.join(cache_path, "pred_embeddings.pt")
 gt_embed_path = os.path.join(cache_path, "gt_embeddings.pt")
 weights = {"bigram": (1/2., 1/2.)}
-composite_metric_col = "cxr_metric_score"
+composite_metric_col = "RadCliQ"
 
 
 def prep_reports(reports):
@@ -57,7 +56,7 @@ def add_bleu_col(gt_df, pred_df):
             pred_df.at[_index, "bleu_score"] = score[0]
     return pred_df
 
-def add_bertscore_col(gt_df, pred_df):
+def add_bertscore_col(gt_df, pred_df, use_idf):
     """Computes BERTScore and adds scores as a column to prediction df."""
     test_reports = gt_df[REPORT_COL_NAME].tolist()
     test_reports = [re.sub(r' +', ' ', test) for test in test_reports]
@@ -68,7 +67,9 @@ def add_bertscore_col(gt_df, pred_df):
         model_type="distilroberta-base",
         batch_size=256,
         lang="en",
-        rescale_with_baseline=True)
+        rescale_with_baseline=True,
+        idf=use_idf,
+        idf_sents=test_reports)
     _, _, f1 = scorer.score(method_reports, test_reports)
     pred_df["bertscore"] = f1
     return pred_df
@@ -77,8 +78,13 @@ def add_semb_col(pred_df, semb_path, gt_path):
     """Computes s_emb and adds scores as a column to prediction df."""
     label_embeds = torch.load(gt_path)
     pred_embeds = torch.load(semb_path)
-    np_label_embeds = torch.stack([*label_embeds.values()], dim=0).numpy()
-    np_pred_embeds = torch.stack([*pred_embeds.values()], dim=0).numpy()
+    list_label_embeds = []
+    list_pred_embeds = []
+    for data_idx in sorted(label_embeds.keys()):
+        list_label_embeds.append(label_embeds[data_idx])
+        list_pred_embeds.append(pred_embeds[data_idx])
+    np_label_embeds = torch.stack(list_label_embeds, dim=0).numpy()
+    np_pred_embeds = torch.stack(list_pred_embeds, dim=0).numpy()
     scores = []
     for i, (label, pred) in enumerate(zip(np_label_embeds, np_pred_embeds)):
         sim_scores = (label * pred).sum() / (
@@ -112,16 +118,29 @@ def add_radgraph_col(pred_df, entities_path, relations_path):
     pred_df["radgraph_combined"] = radgraph_scores
     return pred_df
 
-def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a time
+def calc_metric(gt_csv, pred_csv, out_csv, use_idf): # TODO: support single metrics at a time
     """Computes four metrics and composite metric scores."""
     os.environ["MKL_THREADING_LAYER"] = "GNU"
 
+    cache_gt_csv = os.path.join(
+        os.path.dirname(gt_csv), f"cache_{os.path.basename(gt_csv)}")
+    cache_pred_csv = os.path.join(
+        os.path.dirname(pred_csv), f"cache_{os.path.basename(pred_csv)}")
     gt = pd.read_csv(gt_csv)\
         .sort_values(by=[STUDY_ID_COL_NAME]).reset_index(drop=True)
-    gt.to_csv(gt_csv)
     pred = pd.read_csv(pred_csv)\
         .sort_values(by=[STUDY_ID_COL_NAME]).reset_index(drop=True)
-    pred.to_csv(pred_csv)
+
+    # Keep intersection of study IDs
+    gt_study_ids = set(gt[STUDY_ID_COL_NAME])
+    pred_study_ids = set(pred[STUDY_ID_COL_NAME])
+    shared_study_ids = gt_study_ids.intersection(pred_study_ids)
+    print(f"Number of shared study IDs: {len(shared_study_ids)}")
+    gt = gt.loc[gt[STUDY_ID_COL_NAME].isin(shared_study_ids)].reset_index()
+    pred = pred.loc[pred[STUDY_ID_COL_NAME].isin(shared_study_ids)].reset_index()
+
+    gt.to_csv(cache_gt_csv)
+    pred.to_csv(cache_pred_csv)
 
     # check that length and study IDs are the same
     assert len(gt) == len(pred)
@@ -132,18 +151,18 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     pred = add_bleu_col(gt, pred)
 
     # add bertscore column to the eval df
-    pred = add_bertscore_col(gt, pred)
+    pred = add_bertscore_col(gt, pred, use_idf)
 
     # run encode.py to make the semb column
     os.system(f"mkdir -p {cache_path}")
-    os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {pred_csv} -o {pred_embed_path}")
-    os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {gt_csv} -o {gt_embed_path}")
+    os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {cache_pred_csv} -o {pred_embed_path}")
+    os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {cache_gt_csv} -o {gt_embed_path}")
     pred = add_semb_col(pred, pred_embed_path, gt_embed_path)
 
     # run radgraph to create that column
     entities_path = os.path.join(cache_path, "entities_cache.json")
     relations_path = os.path.join(cache_path, "relations_cache.json")
-    run_radgraph(gt_csv, pred_csv, cache_path, RADGRAPH_PATH,
+    run_radgraph(cache_gt_csv, cache_pred_csv, cache_path, RADGRAPH_PATH,
                  entities_path, relations_path)
     pred = add_radgraph_col(pred, entities_path, relations_path)
 
@@ -156,10 +175,7 @@ def calc_metric(gt_csv, pred_csv, out_csv): # TODO: support single metrics at a 
     input_data = np.array(pred[COLS])
     norm_input_data = normalizer.transform(input_data)
     # generate new col
-    metric_col_indices = [COLS.index(col) for col in COMPOSITE_METRIC_COLS]
-    scores = composite_metric_model.predict(
-        norm_input_data[:, metric_col_indices])
-    # append new column
+    scores = composite_metric_model.predict(norm_input_data)
     pred[composite_metric_col] = scores
 
     # save results in the out folder
