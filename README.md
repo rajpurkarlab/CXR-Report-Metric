@@ -1,10 +1,9 @@
-# Measuring Progress in Automatic Chest X-Ray Radiology Report Generation
+# Evaluating Progress in Automatic Chest X-Ray Radiology Report Generation
 
 <img src="figures/metric-radiologist-alignment.jpg" width="700"/>
 
-Repository referenced in the paper "Measuring Progress in Automatic Chest 
-X-Ray Radiology Report Generation". This repository provides code for computing
-metric scores for radiology report evaluation. The metrics are:
+Repository referenced in the paper "[Evaluating Progress in Automatic Chest 
+X-Ray Radiology Report Generation](https://www.medrxiv.org/content/10.1101/2022.08.30.22279318v1)". This repository provides code for computing metric scores for radiology report evaluation. The metrics are:
 * BLEU
 * BERTscore
 * CheXbert labeler vector similarity
@@ -67,7 +66,7 @@ Paper (Accepted to NeurIPS 2021): https://arxiv.org/abs/2106.14463.
 # Usage
 ```
 from CXRMetric.run_eval import calc_metric
-calc_metric(gt_reports, predicted_reports, out_file)
+calc_metric(gt_reports, predicted_reports, out_file, use_idf)
 ```
 
 
@@ -82,5 +81,15 @@ This repository is made publicly available under the MIT License.
 # Citing
 If you are using this repo, please cite this paper:
 ```
-TODO
+@article {Yu2022.08.30.22279318,
+	author = {Yu, Feiyang and Endo, Mark and Krishnan, Rayan and Pan, Ian and Tsai, Andy and Reis, Eduardo Pontes and Fonseca, Eduardo Kaiser Ururahy Nunes and Ho Lee, Henrique Min and Abad, Zahra Shakeri Hossein and Ng, Andrew Y. and Langlotz, Curtis P. and Venugopal, Vasantha Kumar and Rajpurkar, Pranav},
+	title = {Evaluating Progress in Automatic Chest X-Ray Radiology Report Generation},
+	elocation-id = {2022.08.30.22279318},
+	year = {2022},
+	doi = {10.1101/2022.08.30.22279318},
+	publisher = {Cold Spring Harbor Laboratory Press},
+	URL = {https://www.medrxiv.org/content/early/2022/08/31/2022.08.30.22279318},
+	eprint = {https://www.medrxiv.org/content/early/2022/08/31/2022.08.30.22279318.full.pdf},
+	journal = {medRxiv}
+}
 ```
