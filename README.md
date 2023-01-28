@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/486461621.svg)](https://zenodo.org/badge/latestdoi/486461621)
+
 # Evaluating Progress in Automatic Chest X-Ray Radiology Report Generation
 
 <img src="figures/metric-radiologist-alignment.jpg" width="700"/>
