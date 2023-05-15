@@ -1,5 +1,6 @@
 import config
 from CXRMetric.run_eval import calc_metric
+from CXRMetric.run_eval import CompositeMetric
 
 gt_reports = config.GT_REPORTS
 predicted_reports = config.PREDICTED_REPORTS

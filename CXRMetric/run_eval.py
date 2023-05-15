@@ -20,17 +20,53 @@ from CXRMetric.radgraph_evaluate_model import run_radgraph
 CHEXBERT_PATH = config.CHEXBERT_PATH
 RADGRAPH_PATH = config.RADGRAPH_PATH
 
+NORMALIZER_PATH = "CXRMetric/normalizer.pkl"
+COMPOSITE_METRIC_V0_PATH = "CXRMetric/composite_metric_model.pkl"
+COMPOSITE_METRIC_V1_PATH = "CXRMetric/radcliq-v1.pkl"
+
 REPORT_COL_NAME = "report"
 STUDY_ID_COL_NAME = "study_id"
 COLS = ["radgraph_combined", "bertscore", "semb_score", "bleu_score"]
-COMPOSITE_METRIC_PATH = "CXRMetric/composite_metric_model.pkl"
-NORMALIZER_PATH = "CXRMetric/normalizer.pkl"
 
 cache_path = "cache/"
 pred_embed_path = os.path.join(cache_path, "pred_embeddings.pt")
 gt_embed_path = os.path.join(cache_path, "gt_embeddings.pt")
 weights = {"bigram": (1/2., 1/2.)}
-composite_metric_col = "RadCliQ"
+composite_metric_col_v0 = "RadCliQ-v0"
+composite_metric_col_v1 = "RadCliQ-v1"
+
+
+class CompositeMetric:
+    """The RadCliQ-v1 composite metric.
+
+    Attributes:
+        scaler: Input normalizer.
+        coefs: Coefficients including the intercept.
+    """
+    def __init__(self, scaler, coefs):
+        """Initializes the composite metric with a normalizer and coefficients.
+
+        Args:
+            scaler: Input normalizer.
+            coefs: Coefficients including the intercept.
+        """
+        self.scaler = scaler
+        self.coefs = coefs
+
+    def predict(self, x):
+        """Generates composite metric score for input.
+
+        Args:
+            x: Input data.
+
+        Returns:
+            Composite metric score.
+        """
+        norm_x = self.scaler.transform(x)
+        norm_x = np.concatenate(
+            (norm_x, np.ones((norm_x.shape[0], 1))), axis=1)
+        pred = norm_x @ self.coefs
+        return pred
 
 
 def prep_reports(reports):
@@ -166,17 +202,24 @@ def calc_metric(gt_csv, pred_csv, out_csv, use_idf): # TODO: support single metr
                  entities_path, relations_path)
     pred = add_radgraph_col(pred, entities_path, relations_path)
 
-    # compute composite metric
-    with open(COMPOSITE_METRIC_PATH, "rb") as f:
-        composite_metric_model = pickle.load(f)
+    # compute composite metric: RadCliQ-v0
+    with open(COMPOSITE_METRIC_V0_PATH, "rb") as f:
+        composite_metric_v0_model = pickle.load(f)
     with open(NORMALIZER_PATH, "rb") as f:
         normalizer = pickle.load(f)
     # normalize
     input_data = np.array(pred[COLS])
     norm_input_data = normalizer.transform(input_data)
     # generate new col
-    scores = composite_metric_model.predict(norm_input_data)
-    pred[composite_metric_col] = scores
+    radcliq_v0_scores = composite_metric_v0_model.predict(norm_input_data)
+    pred[composite_metric_col_v0] = radcliq_v0_scores
+
+    # compute composite metric: RadCliQ-v1
+    with open(COMPOSITE_METRIC_V1_PATH, "rb") as f:
+        composite_metric_v1_model = pickle.load(f)
+    input_data = np.array(pred[COLS])
+    radcliq_v1_scores = composite_metric_v1_model.predict(input_data)
+    pred[composite_metric_col_v1] = radcliq_v1_scores
 
     # save results in the out folder
     pred.to_csv(out_csv)
