@@ -68,7 +68,7 @@ def label(checkpoint_path, csv_path, filename="data.pt", logits=False): # TODO: 
         model = nn.DataParallel(model) #to utilize multiple GPU's
         model = model.to(device)
         checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     else:
         checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         new_state_dict = OrderedDict()
