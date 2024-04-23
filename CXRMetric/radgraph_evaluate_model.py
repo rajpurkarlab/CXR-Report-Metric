@@ -29,9 +29,9 @@ def compute_f1(test, retrieved):
             if true_positives + false_negatives != 0 else 0
     f1 = 2 * precision * recall / (precision + recall) \
             if precision + recall != 0 else 0
-    return f1
+    return [f1, recall, precision]
 
-def generate_radgraph(model_path, raw_path, output_path, cuda=0,
+def generate_radgraph(model_path, raw_path, output_path, cuda=-1,
                       start=None, end=None,
                       sentence=False, image=False,
                       data_source="MIMIC-CXR", data_split="metric-oracle"):
@@ -141,7 +141,7 @@ def evaluate_radgraph(ground_truth_path, generated_path,
     for dicom_report_id, results in ground_truth_entities.items():
         if not dicom_report_id in generated_entities:  # 0 match
             generated_entities[dicom_report_id] = {}
-        f1 = compute_f1(
+        f1, recall, precision = compute_f1(
                 results,
                 generated_entities[dicom_report_id])
         try:
@@ -151,16 +151,16 @@ def evaluate_radgraph(ground_truth_path, generated_path,
             report_id = dicom_report_id
         if not report_id in entity_f1s:
             entity_f1s[report_id] = \
-                    (f1, dicom_id, (len(results),
+                    ([f1, recall, precision], dicom_id, (len(results),
                                     len(generated_entities[dicom_report_id])))
         elif f1 > entity_f1s[report_id][0]:
             entity_f1s[report_id] = \
-                    (f1, dicom_id, (len(results),
+                    ([f1, recall, precision], dicom_id, (len(results),
                                     len(generated_entities[dicom_report_id])))
     for dicom_report_id, results in ground_truth_relations.items():
         if not dicom_report_id in generated_relations:  # 0 match
             generated_relations[dicom_report_id] = {}
-        f1 = compute_f1(
+        f1, recall, precision = compute_f1(
                 results,
                 generated_relations[dicom_report_id])
         try:
@@ -170,11 +170,11 @@ def evaluate_radgraph(ground_truth_path, generated_path,
             report_id = dicom_report_id
         if not report_id in relation_f1s:
             relation_f1s[report_id] = \
-                    (f1, dicom_id, (len(results),
+                    ([f1, recall, precision], dicom_id, (len(results),
                                     len(generated_relations[dicom_report_id])))
         elif f1 > relation_f1s[report_id][0]:
             relation_f1s[report_id] = \
-                    (f1, dicom_id, (len(results),
+                    ([f1, recall, precision], dicom_id, (len(results),
                                     len(generated_relations[dicom_report_id])))
 
     with open(entity_output_path, "w") as f:
@@ -184,9 +184,9 @@ def evaluate_radgraph(ground_truth_path, generated_path,
 
     # Average over all reports (study ID level)
     avg_entity_f1 = sum(
-            [f1 for f1, _, _ in entity_f1s.values()]) / len(entity_f1s)
+            [f1 for (f1, recall, precision), _, _ in entity_f1s.values()]) / len(entity_f1s)
     avg_relation_f1 = sum(
-            [f1 for f1, _, _ in relation_f1s.values()]) / len(relation_f1s)
+            [f1 for (f1, recall, precision), _, _ in relation_f1s.values()]) / len(relation_f1s)
     print(f"Average RadGraph entity F1 = {avg_entity_f1}\n"
           f"Average RadGraph relation F1 = {avg_relation_f1}\n")
 

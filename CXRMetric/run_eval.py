@@ -131,27 +131,43 @@ def add_semb_col(pred_df, semb_path, gt_path):
 
 def add_radgraph_col(pred_df, entities_path, relations_path):
     """Computes RadGraph F1 and adds scores as a column to prediction df."""
-    study_id_to_radgraph = {}
+    study_id_to_radgraph_f1 = {}
+    study_id_to_radgraph_recall = {}
+    study_id_to_radgraph_precision = {}
     with open(entities_path, "r") as f:
         scores = json.load(f)
-        for study_id, (f1, _, _) in scores.items():
+        for study_id, (radg_metrics, _, _) in scores.items():
+            f1, recall, precision = radg_metrics
             try:
-                study_id_to_radgraph[int(study_id)] = float(f1)
+                study_id_to_radgraph_f1[int(study_id)] = float(f1)
+                study_id_to_radgraph_recall[int(study_id)] = float(recall)
+                study_id_to_radgraph_precision[int(study_id)] = float(precision)
             except:
                 continue
     with open(relations_path, "r") as f:
         scores = json.load(f)
-        for study_id, (f1, _, _) in scores.items():
+        for study_id, (radg_metrics, _, _) in scores.items():
+            f1, recall, precision = radg_metrics
             try:
-                study_id_to_radgraph[int(study_id)] += float(f1)
-                study_id_to_radgraph[int(study_id)] /= float(2)
+                study_id_to_radgraph_f1[int(study_id)] += float(f1)
+                study_id_to_radgraph_f1[int(study_id)] /= float(2)
+                study_id_to_radgraph_recall[int(study_id)] += float(recall)
+                study_id_to_radgraph_recall[int(study_id)] /= float(2)
+                study_id_to_radgraph_precision[int(study_id)] += float(precision)
+                study_id_to_radgraph_precision[int(study_id)] /= float(2)
             except:
                 continue
     radgraph_scores = []
+    radgraph_recalls = []
+    radgraph_precisions = []
     count = 0
     for i, row in pred_df.iterrows():
-        radgraph_scores.append(study_id_to_radgraph[int(row[STUDY_ID_COL_NAME])])
+        radgraph_scores.append(study_id_to_radgraph_f1[int(row[STUDY_ID_COL_NAME])])
+        radgraph_recalls.append(study_id_to_radgraph_recall[int(row[STUDY_ID_COL_NAME])])
+        radgraph_precisions.append(study_id_to_radgraph_precision[int(row[STUDY_ID_COL_NAME])])
     pred_df["radgraph_combined"] = radgraph_scores
+    pred_df["radgraph_recall"] = radgraph_recalls
+    pred_df["radgraph_precision"] = radgraph_precisions
     return pred_df
 
 def calc_metric(gt_csv, pred_csv, out_csv, use_idf): # TODO: support single metrics at a time
