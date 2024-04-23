@@ -7,7 +7,7 @@ import pickle
 import torch
 
 from bert_score import BERTScorer
-# from fast_bleu import BLEU
+from fast_bleu import BLEU
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 
@@ -75,59 +75,22 @@ def prep_reports(reports):
         lambda val: val !=  "", str(elem)\
             .lower().replace(".", " .").split(" "))) for elem in reports]
 
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
-import nltk
-nltk.download('punkt')
-from nltk.tokenize import word_tokenize
-
 def add_bleu_col(gt_df, pred_df):
     """Computes BLEU-2 and adds scores as a column to prediction df."""
     pred_df["bleu_score"] = [0.0] * len(pred_df)
     for i, row in gt_df.iterrows():
-        gt_report_tokens = row[REPORT_COL_NAME]  # Assuming this is already a list of tokens
+        gt_report = prep_reports([row[REPORT_COL_NAME]])[0]
         pred_row = pred_df[pred_df[STUDY_ID_COL_NAME] == row[STUDY_ID_COL_NAME]]
+        predicted_report = \
+            prep_reports([pred_row[REPORT_COL_NAME].values[0]])[0]
         if len(pred_row) == 1:
-            predicted_report_tokens = pred_row[REPORT_COL_NAME].values[0]  # Assuming this is already a list of tokens
-            # Specify the weights for up to bigrams
-            weights = (0.5, 0.5)
-            # Calculate BLEU score
-            score = sentence_bleu([gt_report_tokens], predicted_report_tokens, weights=weights, smoothing_function=SmoothingFunction().method1)
-            _index = pred_df.index[pred_df[STUDY_ID_COL_NAME] == row[STUDY_ID_COL_NAME]].tolist()[0]
-            pred_df.at[_index, "bleu_score"] = score
+            bleu = BLEU([gt_report], weights)
+            score = bleu.get_score([predicted_report])["bigram"]
+            assert len(score) == 1
+            _index = pred_df.index[
+                pred_df[STUDY_ID_COL_NAME]==row[STUDY_ID_COL_NAME]].tolist()[0]
+            pred_df.at[_index, "bleu_score"] = score[0]
     return pred_df
-
-# def add_bleu_col(gt_df, pred_df):
-#     """Computes BLEU-4 and adds scores as a column to prediction df."""
-#     pred_df["bleu_score"] = [0.0] * len(pred_df)
-#     for i, row in gt_df.iterrows():
-#         gt_report_tokens = row[REPORT_COL_NAME]  # Assuming this is already a list of tokens
-#         pred_row = pred_df[pred_df[STUDY_ID_COL_NAME] == row[STUDY_ID_COL_NAME]]
-#         if len(pred_row) == 1:
-#             predicted_report_tokens = pred_row[REPORT_COL_NAME].values[0]  # Assuming this is already a list of tokens
-#             # Specify the weights for BLEU-4
-#             weights = (0.25, 0.25, 0.25, 0.25)  # Evenly distribute weights for 1-gram to 4-gram
-#             # Calculate BLEU score
-#             score = sentence_bleu([gt_report_tokens], predicted_report_tokens, weights=weights, smoothing_function=SmoothingFunction().method1)
-#             _index = pred_df.index[pred_df[STUDY_ID_COL_NAME] == row[STUDY_ID_COL_NAME]].tolist()[0]
-#             pred_df.at[_index, "bleu_score"] = score
-#     return pred_df
-
-# def add_bleu_col(gt_df, pred_df):
-#     """Computes BLEU-2 and adds scores as a column to prediction df."""
-#     pred_df["bleu_score"] = [0.0] * len(pred_df)
-#     for i, row in gt_df.iterrows():
-#         gt_report = prep_reports([row[REPORT_COL_NAME]])[0]
-#         pred_row = pred_df[pred_df[STUDY_ID_COL_NAME] == row[STUDY_ID_COL_NAME]]
-#         predicted_report = \
-#             prep_reports([pred_row[REPORT_COL_NAME].values[0]])[0]
-#         if len(pred_row) == 1:
-#             bleu = BLEU([gt_report], weights)
-#             score = bleu.get_score([predicted_report])["bigram"]
-#             assert len(score) == 1
-#             _index = pred_df.index[
-#                 pred_df[STUDY_ID_COL_NAME]==row[STUDY_ID_COL_NAME]].tolist()[0]
-#             pred_df.at[_index, "bleu_score"] = score[0]
-#     return pred_df
 
 def add_bertscore_col(gt_df, pred_df, use_idf):
     """Computes BERTScore and adds scores as a column to prediction df."""
