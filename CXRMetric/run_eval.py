@@ -8,11 +8,13 @@ import torch
 
 from bert_score import BERTScorer
 from fast_bleu import BLEU
+from radgraph import RadGraph
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 
 import config
 from CXRMetric.radgraph_evaluate_model import run_radgraph
+from huggingface_hub import hf_hub_download
 
 """Computes 4 individual metrics and a composite metric on radiology reports."""
 
@@ -129,29 +131,43 @@ def add_semb_col(pred_df, semb_path, gt_path):
     pred_df["semb_score"] = scores
     return pred_df
 
-def add_radgraph_col(pred_df, entities_path, relations_path):
-    """Computes RadGraph F1 and adds scores as a column to prediction df."""
-    study_id_to_radgraph = {}
-    with open(entities_path, "r") as f:
-        scores = json.load(f)
-        for study_id, (f1, _, _) in scores.items():
-            try:
-                study_id_to_radgraph[int(study_id)] = float(f1)
-            except:
-                continue
-    with open(relations_path, "r") as f:
-        scores = json.load(f)
-        for study_id, (f1, _, _) in scores.items():
-            try:
-                study_id_to_radgraph[int(study_id)] += float(f1)
-                study_id_to_radgraph[int(study_id)] /= float(2)
-            except:
-                continue
-    radgraph_scores = []
-    count = 0
-    for i, row in pred_df.iterrows():
-        radgraph_scores.append(study_id_to_radgraph[int(row[STUDY_ID_COL_NAME])])
-    pred_df["radgraph_combined"] = radgraph_scores
+## NEW RADGRAPH
+def add_radgraph_col(gt_df, pred_df):
+    rg = RadGraph(model_type="radgraph")
+
+    hyp = rg(pred_df["report"].tolist())
+    ref = rg(gt_df["report"].tolist())
+
+    def _f1(gt_set, pred_set):
+        tp = len(gt_set & pred_set)
+        fp = len(pred_set) - tp
+        fn = len(gt_set) - tp
+        precision = tp / (tp + fp) if (tp + fp) else 0.0
+        recall = tp / (tp + fn) if (tp + fn) else 0.0
+        return (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+
+    def _entity_relation_sets(doc):
+        entities = doc.get("entities", {})
+        ents = {(e["tokens"], e["label"]) for e in entities.values()}
+
+        rels = set()
+        for e in entities.values():
+            start = (e["tokens"], e["label"])
+            for rel_type, end_id in e.get("relations", []):
+                end = entities.get(str(end_id))
+                if end is None:
+                    continue
+                rels.add((start, (end["tokens"], end["label"]), rel_type))
+
+        return ents, rels
+
+    combined = []
+    for i in range(len(pred_df)):
+        h_ents, h_rels = _entity_relation_sets(hyp[str(i)])
+        r_ents, r_rels = _entity_relation_sets(ref[str(i)])
+        combined.append(0.5 * (_f1(r_ents, h_ents) + _f1(r_rels, h_rels)))
+
+    pred_df["radgraph_combined"] = combined
     return pred_df
 
 def calc_metric(gt_csv, pred_csv, out_csv, use_idf): # TODO: support single metrics at a time
@@ -189,19 +205,20 @@ def calc_metric(gt_csv, pred_csv, out_csv, use_idf): # TODO: support single metr
     # add bertscore column to the eval df
     pred = add_bertscore_col(gt, pred, use_idf)
 
+    # Download CheXBERT from HF if not exists
+    global CHEXBERT_PATH
+    if not os.path.exists(CHEXBERT_PATH):
+        CHEXBERT_PATH = hf_hub_download("StanfordAIMI/RRG_scorers", "chexbert.pth")
+        
     # run encode.py to make the semb column
     os.system(f"mkdir -p {cache_path}")
     os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {cache_pred_csv} -o {pred_embed_path}")
     os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {cache_gt_csv} -o {gt_embed_path}")
     pred = add_semb_col(pred, pred_embed_path, gt_embed_path)
-
-    # run radgraph to create that column
-    entities_path = os.path.join(cache_path, "entities_cache.json")
-    relations_path = os.path.join(cache_path, "relations_cache.json")
-    run_radgraph(cache_gt_csv, cache_pred_csv, cache_path, RADGRAPH_PATH,
-                 entities_path, relations_path)
-    pred = add_radgraph_col(pred, entities_path, relations_path)
-
+    
+    # NEW RADGRAPH
+    pred = add_radgraph_col(gt, pred)
+    
     # compute composite metric: RadCliQ-v0
     with open(COMPOSITE_METRIC_V0_PATH, "rb") as f:
         composite_metric_v0_model = pickle.load(f)

@@ -1,5 +1,5 @@
 # Model checkpoints
-CHEXBERT_PATH = "CheXbert/models/chexbert.pth"
+CHEXBERT_PATH = "chexbert.pth"
 RADGRAPH_PATH = "radgraph/physionet.org/files/radgraph/1.0.0/models/model_checkpoint/model.tar.gz"
 
 # Report paths
