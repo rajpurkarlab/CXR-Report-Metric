@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import utils
 from models.bert_labeler import bert_labeler
-from datasets.impressions_dataset import ImpressionsDataset
+from chexbert_datasets.impressions_dataset import ImpressionsDataset
 from constants import *
 
 def collate_fn_labels(sample_list):

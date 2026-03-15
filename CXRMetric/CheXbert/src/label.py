@@ -9,7 +9,7 @@ from models.bert_labeler import bert_labeler
 from bert_tokenizer import tokenize
 from transformers import BertTokenizer
 from collections import OrderedDict
-from datasets.unlabeled_dataset import UnlabeledDataset
+from chexbert_datasets.unlabeled_dataset import UnlabeledDataset
 from constants import *
 from tqdm import tqdm
 

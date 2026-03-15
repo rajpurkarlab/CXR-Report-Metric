@@ -14,4 +14,4 @@ requires-python = ">=3.7"
 packages = ["CXRMetric"]
 
 [tool.setuptools.package-data]
-CXRMetric = ["*.pkl", "CheXbert/src/**/*.py", "CheXbert/src/models/**/*.py", "CheXbert/src/datasets/**/*.py"]
+CXRMetric = ["*.pkl", "CheXbert/src/**/*.py", "CheXbert/src/models/**/*.py", "CheXbert/src/chexbert_datasets/**/*.py"]
