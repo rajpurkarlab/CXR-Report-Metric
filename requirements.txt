@@ -1,5 +1,6 @@
-allennlp==1.1.0
-allennlp_models==1.1.0
+# allennlp is deprecated and no longer maintained; these are kept for reference only
+# allennlp==1.1.0
+# allennlp_models==1.1.0
 beautifulsoup4==4.8.1
 bert-score==0.3.11
 fast-bleu==0.0.90

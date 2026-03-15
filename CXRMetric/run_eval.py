@@ -2,6 +2,7 @@ import json
 import numpy as np
 import os
 import re
+import sys
 import pandas as pd
 import pickle
 import torch
@@ -11,26 +12,21 @@ from fast_bleu import BLEU
 from radgraph import RadGraph
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
-
-import config
-from CXRMetric.radgraph_evaluate_model import run_radgraph
 from huggingface_hub import hf_hub_download
 
 """Computes 4 individual metrics and a composite metric on radiology reports."""
 
+_PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 
-CHEXBERT_PATH = config.CHEXBERT_PATH
-RADGRAPH_PATH = config.RADGRAPH_PATH
-
-NORMALIZER_PATH = "CXRMetric/normalizer.pkl"
-COMPOSITE_METRIC_V0_PATH = "CXRMetric/composite_metric_model.pkl"
-COMPOSITE_METRIC_V1_PATH = "CXRMetric/radcliq-v1.pkl"
+NORMALIZER_PATH = os.path.join(_PKG_DIR, "normalizer.pkl")
+COMPOSITE_METRIC_V0_PATH = os.path.join(_PKG_DIR, "composite_metric_model.pkl")
+COMPOSITE_METRIC_V1_PATH = os.path.join(_PKG_DIR, "radcliq-v1.pkl")
 
 REPORT_COL_NAME = "report"
 STUDY_ID_COL_NAME = "study_id"
 COLS = ["radgraph_combined", "bertscore", "semb_score", "bleu_score"]
 
-cache_path = "cache/"
+cache_path = os.path.join(_PKG_DIR, "cache")
 pred_embed_path = os.path.join(cache_path, "pred_embeddings.pt")
 gt_embed_path = os.path.join(cache_path, "gt_embeddings.pt")
 weights = {"bigram": (1/2., 1/2.)}
@@ -69,6 +65,9 @@ class CompositeMetric:
             (norm_x, np.ones((norm_x.shape[0], 1))), axis=1)
         pred = norm_x @ self.coefs
         return pred
+
+# Fix pickle deserialization for CompositeMetric (was pickled under __main__)
+sys.modules["__main__"].CompositeMetric = CompositeMetric
 
 
 def prep_reports(reports):
@@ -131,6 +130,14 @@ def add_semb_col(pred_df, semb_path, gt_path):
     pred_df["semb_score"] = scores
     return pred_df
 
+def _run_chexbert_encode(checkpoint_path, csv_path, output_path):
+    """Run CheXbert encoding by calling encode.label() directly."""
+    chexbert_src = os.path.join(_PKG_DIR, "CheXbert", "src")
+    if chexbert_src not in sys.path:
+        sys.path.insert(0, chexbert_src)
+    from encode import label as chexbert_label
+    chexbert_label(checkpoint_path, csv_path, output_path)
+
 ## NEW RADGRAPH
 def add_radgraph_col(gt_df, pred_df):
     rg = RadGraph(model_type="radgraph")
@@ -170,7 +177,7 @@ def add_radgraph_col(gt_df, pred_df):
     pred_df["radgraph_combined"] = combined
     return pred_df
 
-def calc_metric(gt_csv, pred_csv, out_csv, use_idf): # TODO: support single metrics at a time
+def calc_metric(gt_csv, pred_csv, out_csv, use_idf):
     """Computes four metrics and composite metric scores."""
     os.environ["MKL_THREADING_LAYER"] = "GNU"
 
@@ -206,19 +213,17 @@ def calc_metric(gt_csv, pred_csv, out_csv, use_idf): # TODO: support single metr
     pred = add_bertscore_col(gt, pred, use_idf)
 
     # Download CheXBERT from HF if not exists
-    global CHEXBERT_PATH
-    if not os.path.exists(CHEXBERT_PATH):
-        CHEXBERT_PATH = hf_hub_download("StanfordAIMI/RRG_scorers", "chexbert.pth")
-        
-    # run encode.py to make the semb column
-    os.system(f"mkdir -p {cache_path}")
-    os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {cache_pred_csv} -o {pred_embed_path}")
-    os.system(f"python CXRMetric/CheXbert/src/encode.py -c {CHEXBERT_PATH} -d {cache_gt_csv} -o {gt_embed_path}")
+    chexbert_path = hf_hub_download("StanfordAIMI/RRG_scorers", "chexbert.pth")
+
+    # run CheXbert encoding to make the semb column
+    os.makedirs(cache_path, exist_ok=True)
+    _run_chexbert_encode(chexbert_path, cache_pred_csv, pred_embed_path)
+    _run_chexbert_encode(chexbert_path, cache_gt_csv, gt_embed_path)
     pred = add_semb_col(pred, pred_embed_path, gt_embed_path)
-    
+
     # NEW RADGRAPH
     pred = add_radgraph_col(gt, pred)
-    
+
     # compute composite metric: RadCliQ-v0
     with open(COMPOSITE_METRIC_V0_PATH, "rb") as f:
         composite_metric_v0_model = pickle.load(f)

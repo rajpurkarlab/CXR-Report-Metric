@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "CXRMetric"
+version = "0.1.0"
+description = "Evaluation metrics for chest X-ray radiology report generation"
+license = {text = "MIT"}
+requires-python = ">=3.7"
+# Dependencies are intentionally omitted; install them separately.
+
+[tool.setuptools]
+packages = ["CXRMetric"]
+
+[tool.setuptools.package-data]
+CXRMetric = ["*.pkl", "CheXbert/src/**/*.py", "CheXbert/src/models/**/*.py", "CheXbert/src/datasets/**/*.py"]
